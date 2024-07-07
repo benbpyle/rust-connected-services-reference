@@ -28,3 +28,14 @@ services:
     depends_on:
       - service-a
       - service-c
+  # datadog:
+  #   image: datadog/agent:latest
+  #   pid: host
+  #   environment:
+  #     - DD_API_KEY=${DD_API_KEY}
+  #     - DD_SITE=us5.datadoghq.com
+  #     - DD_LOG_LEVEL=CRITICAL
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - /proc/:/host/proc/:ro
+  #     - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
