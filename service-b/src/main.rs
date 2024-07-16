@@ -22,6 +22,7 @@ struct ExternalModel {
     key_one: String,
     key_two: String,
     key_time: DateTime<Utc>,
+    weather: ServiceDModel,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -35,9 +36,18 @@ struct ServiceCModel {
     key_time: DateTime<Utc>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ServiceDModel {
+    city: String,
+    state: String,
+    celcius: f64,
+    farenheight: f64,
+}
+
+#[derive(Deserialize, Debug, Clone)]
 struct Prefix {
     name: Option<String>,
+    zip: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -111,12 +121,14 @@ async fn handler(
     State(state): State<AppState>,
     Query(q): Query<Prefix>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let service_a_model_response = get_service_a(&state.http_client, q).await?;
+    let service_a_model_response = get_service_a(&state.http_client, q.clone()).await?;
     let service_c_model_response = get_service_c(&state.http_client).await?;
+    let service_d_model_response = get_service_d(&state.http_client, q.clone()).await?;
     let external_model = ExternalModel {
         key_one: service_a_model_response.key_one,
         key_two: service_a_model_response.key_two,
         key_time: service_c_model_response.key_time,
+        weather: service_d_model_response,
     };
     Ok(Json(external_model))
 }
@@ -147,6 +159,60 @@ async fn get_service_c(client: &Client) -> Result<ServiceCModel, StatusCode> {
         Ok(r) => {
             if r.status().is_success() {
                 let j: Result<ServiceCModel, Error> = r.json().await;
+                match j {
+                    Ok(m) => Ok(m),
+                    Err(e) => {
+                        tracing::error!("Error parsing: {}", e);
+                        Err(StatusCode::BAD_REQUEST)
+                    }
+                }
+            } else {
+                tracing::error!("Bad request={:?}", r.status());
+                Err(StatusCode::BAD_REQUEST)
+            }
+        }
+        Err(e) => {
+            tracing::error!("Error requesting: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[instrument(name = "http-service-d")]
+async fn get_service_d(client: &Client, q: Prefix) -> Result<ServiceDModel, StatusCode> {
+    let service_d_host: String = std::env::var("SERVICE_D_URL").expect("SERVICE_D_URL Must be Set");
+
+    let prefix: String;
+    let passed_value = &q.zip;
+
+    if let Some(s) = passed_value {
+        prefix = String::from(s.as_str());
+    } else {
+        prefix = String::from("Unknown");
+    }
+
+    let url = format!("{}/weather?zip={}", service_d_host, prefix);
+    let ctx = Span::current().context();
+    let propagator = TraceContextPropagator::new();
+    let mut fields = HashMap::new();
+
+    propagator.inject_context(&ctx, &mut fields);
+    let headers = fields
+        .into_iter()
+        .map(|(k, v)| {
+            (
+                HeaderName::try_from(k).unwrap(),
+                HeaderValue::try_from(v).unwrap(),
+            )
+        })
+        .collect();
+    tracing::info!("(Request)={}", url.as_str());
+
+    let response = client.get(url.as_str()).headers(headers).send().await;
+    match response {
+        Ok(r) => {
+            if r.status().is_success() {
+                let j: Result<ServiceDModel, Error> = r.json().await;
                 match j {
                     Ok(m) => Ok(m),
                     Err(e) => {
