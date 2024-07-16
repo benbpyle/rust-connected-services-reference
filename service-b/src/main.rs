@@ -12,7 +12,7 @@ use opentelemetry_datadog::{new_pipeline, ApiVersion};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use reqwest::{Client, Error};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, str::ParseBoolError};
+use std::{collections::HashMap, str::ParseBoolError, time::Duration};
 use tracing::{instrument, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Registry};
@@ -65,6 +65,7 @@ async fn main() {
     let flag = if let Ok(b) = use_tracing { b } else { false };
 
     let fmt_layer = tracing_subscriber::fmt::layer()
+        .json()
         .with_target(false)
         .without_time();
 
@@ -197,6 +198,7 @@ async fn get_service_a(client: &Client, q: Prefix) -> Result<ServiceAModel, Stat
     tracing::info!("(Request)={}", url.as_str());
 
     let response = client.get(url.as_str()).headers(headers).send().await;
+    tracing::info!("(Response)={:?}", response);
     match response {
         Ok(r) => {
             if r.status().is_success() {
@@ -208,6 +210,12 @@ async fn get_service_a(client: &Client, q: Prefix) -> Result<ServiceAModel, Stat
                         Err(StatusCode::BAD_REQUEST)
                     }
                 }
+            } else if r.status() == StatusCode::GATEWAY_TIMEOUT {
+                let model = ServiceAModel {
+                    key_one: "Timed out".to_string(),
+                    key_two: "Timed out".to_string(),
+                };
+                Ok(model)
             } else {
                 tracing::error!("Bad request={:?}", r.status());
                 Err(StatusCode::BAD_REQUEST)

@@ -1498,6 +1498,7 @@ dependencies = [
  "opentelemetry-http",
  "opentelemetry-stdout",
  "opentelemetry_sdk",
+ "rand",
  "reqwest 0.12.4",
  "reqwest-tracing",
  "serde",

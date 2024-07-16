@@ -40,4 +40,5 @@ COPY --from=builder /app/target/release/service-b ./
 # Use an unprivileged user.
 USER app_user:app_user
 EXPOSE 3000
+ENV RUST_LOG=trace
 CMD ["/app/service-b"]

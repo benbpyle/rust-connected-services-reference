@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::ParseBoolError};
+use std::{collections::HashMap, str::ParseBoolError, thread, time::Duration};
 
 use axum::{
     extract::{Query, State},
@@ -10,6 +10,7 @@ use axum::{
 use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry_datadog::{new_pipeline, ApiVersion};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
@@ -93,6 +94,9 @@ async fn handler(
     headers: HeaderMap,
     query: Query<Prefix>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    let num = rand::thread_rng().gen_range(0..20);
+    thread::sleep(Duration::from_secs(num));
+    tracing::info!("(Rand)={}", num);
     if state.has_apm {
         let mut fields: HashMap<String, String> = HashMap::new();
         fields.insert(
